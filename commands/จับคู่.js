@@ -39,8 +39,13 @@ module.exports = {
       const matchedUserName = matchedUserInfo[matchedUserID].name;
       const senderName = senderInfo[senderID].name;
 
-      const matchedUserPhotoURL = matchedUserInfo[matchedUserID].thumbSrc;
-      const senderPhotoURL = senderInfo[senderID].thumbSrc;
+      // ฟังก์ชันสร้างลิงก์รูปโปรไฟล์ (ขนาดใหญ่)
+      const getProfilePicURL = (userID) => {
+        return `https://graph.facebook.com/${userID}/picture?type=large`;
+      };
+
+      const senderPhotoURL = getProfilePicURL(senderID);
+      const matchedUserPhotoURL = getProfilePicURL(matchedUserID);
 
       // ฟังก์ชันดาวน์โหลดรูปภาพ
       const downloadImage = async (url, filePath) => {
