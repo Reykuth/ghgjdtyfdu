@@ -1,4 +1,4 @@
-// จับคู่.js
+// match.js
 const axios = require('axios');
 const chalk = require('chalk');
 
@@ -33,19 +33,31 @@ module.exports = {
 
       // ดึงข้อมูลผู้ใช้ที่ถูกจับคู่
       const matchedUserInfo = await api.getUserInfo(matchedUserID);
+      console.log('Matched User Info:', matchedUserInfo); // ตรวจสอบข้อมูลในคอนโซล
       const matchedUserName = matchedUserInfo[matchedUserID].name;
 
       // ดึงข้อมูลผู้ใช้ของคุณเอง
       const senderInfo = await api.getUserInfo(senderID);
+      console.log('Sender Info:', senderInfo); // ตรวจสอบข้อมูลในคอนโซล
       const senderName = senderInfo[senderID].name;
 
       // ดึงรูปโปรไฟล์ของคุณและผู้ที่ถูกจับคู่
-      // ตรวจสอบว่ามีฟังก์ชัน getProfilePic ใน ryuu-fca-api หรือไม่
-      // หากไม่มี สามารถใช้ getUserInfo เพื่อดึง URL รูปโปรไฟล์
+      // สมมติว่าใช้ฟิลด์ 'profileUrl' หรือ 'photo' ในข้อมูลผู้ใช้
+      // ถ้าไม่มี, สร้าง URL รูปโปรไฟล์ด้วย Facebook Graph API
+      const getProfilePicURL = (userInfo) => {
+        // ตรวจสอบฟิลด์ที่มีอยู่
+        if (userInfo.profileUrl) {
+          return userInfo.profileUrl;
+        } else if (userInfo.photo) {
+          return userInfo.photo;
+        } else {
+          // สร้าง URL ด้วย Graph API
+          return `https://graph.facebook.com/${userInfo.id}/picture?type=large`;
+        }
+      };
 
-      // สมมติว่า ryuu-fca-api มีฟังก์ชัน getProfilePic
-      const senderPhotoURL = await api.getProfilePic(senderID) || senderInfo[senderID].thumbnailSrc;
-      const matchedUserPhotoURL = await api.getProfilePic(matchedUserID) || matchedUserInfo[matchedUserID].thumbnailSrc;
+      const senderPhotoURL = getProfilePicURL(senderInfo[senderID]);
+      const matchedUserPhotoURL = getProfilePicURL(matchedUserInfo[matchedUserID]);
 
       // ตรวจสอบว่ารูปโปรไฟล์ถูกดึงมาได้หรือไม่
       if (!senderPhotoURL || !matchedUserPhotoURL) {
@@ -67,14 +79,24 @@ module.exports = {
         compatibilityDescription = "พอใช้! 😅";
       }
 
-      // ดึงรูปโปรไฟล์เป็น Buffer
+      // ฟังก์ชันดึงรูปโปรไฟล์เป็น Buffer
       const getImageBuffer = async (url) => {
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        return Buffer.from(response.data, 'binary');
+        try {
+          const response = await axios.get(url, { responseType: 'arraybuffer' });
+          return Buffer.from(response.data, 'binary');
+        } catch (error) {
+          console.error(`❌ ไม่สามารถดึงรูปจาก URL: ${url}`, error);
+          return null;
+        }
       };
 
       const senderPhotoBuffer = await getImageBuffer(senderPhotoURL);
       const matchedUserPhotoBuffer = await getImageBuffer(matchedUserPhotoURL);
+
+      // ตรวจสอบว่ารูปภาพถูกดึงมาได้หรือไม่
+      if (!senderPhotoBuffer || !matchedUserPhotoBuffer) {
+        return api.sendMessage("❗ ไม่สามารถดึงรูปโปรไฟล์ได้ กรุณาลองใหม่อีกครั้ง.", threadID);
+      }
 
       // สร้างข้อความตอบกลับ
       const message = `
