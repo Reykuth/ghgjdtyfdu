@@ -40,7 +40,7 @@ if (fs.existsSync("./events")) {
 // ฟังก์ชันเรียก Simsimi API
 const simiApiKey = "RHQgp8DIh5.ixcWFpjwmcC4tIO1rPV-b89.5_seS";
 const simiUrl = "https://wsapi.simsimi.com/190410/talk";
-const simiLang = "en";
+const simiLang = "th";
 
 async function handleAutoReply(message) {
   try {
