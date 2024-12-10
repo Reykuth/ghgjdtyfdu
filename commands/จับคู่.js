@@ -39,13 +39,22 @@ module.exports = {
       const matchedUserName = matchedUserInfo[matchedUserID].name;
       const senderName = senderInfo[senderID].name;
 
-      // ฟังก์ชันสร้างลิงก์รูปโปรไฟล์ (ขนาดใหญ่)
-      const getProfilePicURL = (userID) => {
-        return `https://graph.facebook.com/${userID}/picture?type=large`;
+      // ฟังก์ชันสร้างลิงก์รูปโปรไฟล์
+      const getProfilePicURL = (userID, fallbackURL) => {
+        const graphAPIURL = `https://graph.facebook.com/${userID}/picture?type=large`;
+        return fallbackURL || graphAPIURL;
       };
 
-      const senderPhotoURL = getProfilePicURL(senderID);
-      const matchedUserPhotoURL = getProfilePicURL(matchedUserID);
+      const senderPhotoURL = getProfilePicURL(senderID, senderInfo[senderID].thumbSrc);
+      const matchedUserPhotoURL = getProfilePicURL(matchedUserID, matchedUserInfo[matchedUserID].thumbSrc);
+
+      // ตรวจสอบว่า URL ใช้งานได้หรือไม่
+      if (!senderPhotoURL || !matchedUserPhotoURL) {
+        return api.sendMessage(
+          `❗ ไม่สามารถดึงรูปโปรไฟล์ของคุณหรือคู่ของคุณได้ โปรดตรวจสอบการตั้งค่าความเป็นส่วนตัว.`,
+          threadID
+        );
+      }
 
       // ฟังก์ชันดาวน์โหลดรูปภาพ
       const downloadImage = async (url, filePath) => {
