@@ -20,7 +20,7 @@ module.exports = {
       const threadInfo = await api.getThreadInfo(threadID);
       const participants = threadInfo.participantIDs;
 
-      // กำจัดตัวเองออกจากรายชื่อ
+      // กำจัดตัวเองและบอทออกจากรายชื่อ
       const filteredParticipants = participants.filter(id => id !== senderID && id !== api.getCurrentUserID());
 
       if (filteredParticipants.length === 0) {
@@ -35,15 +35,22 @@ module.exports = {
       const matchedUserInfo = await api.getUserInfo(matchedUserID);
       const matchedUserName = matchedUserInfo[matchedUserID].name;
 
-      // ดึงรูปโปรไฟล์ของคุณและผู้ที่ถูกจับคู่
+      // ดึงข้อมูลผู้ใช้ของคุณเอง
       const senderInfo = await api.getUserInfo(senderID);
       const senderName = senderInfo[senderID].name;
 
-      const senderPhoto = await api.getUserInfo(senderID);
-      const matchedUserPhoto = await api.getUserInfo(matchedUserID);
+      // ดึงรูปโปรไฟล์ของคุณและผู้ที่ถูกจับคู่
+      // ตรวจสอบว่ามีฟังก์ชัน getProfilePic ใน ryuu-fca-api หรือไม่
+      // หากไม่มี สามารถใช้ getUserInfo เพื่อดึง URL รูปโปรไฟล์
 
-      const senderPhotoURL = senderInfo[senderID].thumbnailSrc;
-      const matchedUserPhotoURL = matchedUserInfo[matchedUserID].thumbnailSrc;
+      // สมมติว่า ryuu-fca-api มีฟังก์ชัน getProfilePic
+      const senderPhotoURL = await api.getProfilePic(senderID) || senderInfo[senderID].thumbnailSrc;
+      const matchedUserPhotoURL = await api.getProfilePic(matchedUserID) || matchedUserInfo[matchedUserID].thumbnailSrc;
+
+      // ตรวจสอบว่ารูปโปรไฟล์ถูกดึงมาได้หรือไม่
+      if (!senderPhotoURL || !matchedUserPhotoURL) {
+        return api.sendMessage("❗ ไม่สามารถดึงรูปโปรไฟล์ได้ กรุณาลองใหม่อีกครั้ง.", threadID);
+      }
 
       // สุ่มเปอร์เซ็นต์ความเข้ากันระหว่าง 50% - 100%
       const compatibility = Math.floor(Math.random() * 51) + 50; // 50 - 100
@@ -60,21 +67,33 @@ module.exports = {
         compatibilityDescription = "พอใช้! 😅";
       }
 
+      // ดึงรูปโปรไฟล์เป็น Buffer
+      const getImageBuffer = async (url) => {
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        return Buffer.from(response.data, 'binary');
+      };
+
+      const senderPhotoBuffer = await getImageBuffer(senderPhotoURL);
+      const matchedUserPhotoBuffer = await getImageBuffer(matchedUserPhotoURL);
+
       // สร้างข้อความตอบกลับ
       const message = `
 💑 **การจับคู่สำเร็จ!**
 
 👤 **คุณ:** ${senderName}
-![Your Profile Picture](${senderPhotoURL})
 
 👤 **คู่ของคุณ:** ${matchedUserName}
-![Matched User Profile Picture](${matchedUserPhotoURL})
 
 ❤️ **ความเข้ากัน:** ${compatibility}% ${compatibilityDescription}
       `;
 
-      // ส่งข้อความตอบกลับ
-      return api.sendMessage(message, threadID);
+      // ส่งข้อความพร้อมกับรูปภาพเป็น Attachments
+      const attachments = [
+        senderPhotoBuffer,
+        matchedUserPhotoBuffer
+      ];
+
+      return api.sendMessage({ body: message, attachment: attachments }, threadID);
     } catch (error) {
       console.error(chalk.red("❌ เกิดข้อผิดพลาดในคำสั่งจับคู่:"), error);
       return api.sendMessage("❗ เกิดข้อผิดพลาดในการทำงานของคำสั่งจับคู่.", event.threadID);
