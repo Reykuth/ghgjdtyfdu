@@ -1,14 +1,15 @@
-// match.js
 const axios = require('axios');
 const chalk = require('chalk');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
   config: {
-    name: "จับคู่", // ชื่อคำสั่ง
+    name: "จับคู่",
     description: "สุ่มจับคู่สมาชิกในกลุ่มกับคุณ พร้อมแสดงเปอร์เซ็นต์ความเข้ากัน",
     usage: "/จับคู่",
-    permissions: [], // กำหนดสิทธิ์การใช้งานถ้ามี
-    aliases: ["match"], // ชื่อเรียกอื่นๆ
+    permissions: [],
+    aliases: ["match"],
   },
 
   run: async ({ api, event, args }) => {
@@ -31,72 +32,49 @@ module.exports = {
       const randomIndex = Math.floor(Math.random() * filteredParticipants.length);
       const matchedUserID = filteredParticipants[randomIndex];
 
-      // ดึงข้อมูลผู้ใช้ที่ถูกจับคู่
+      // ดึงข้อมูลผู้ใช้
       const matchedUserInfo = await api.getUserInfo(matchedUserID);
-      console.log('Matched User Info:', matchedUserInfo); // ตรวจสอบข้อมูลในคอนโซล
-      const matchedUserName = matchedUserInfo[matchedUserID].name;
-
-      // ดึงข้อมูลผู้ใช้ของคุณเอง
       const senderInfo = await api.getUserInfo(senderID);
-      console.log('Sender Info:', senderInfo); // ตรวจสอบข้อมูลในคอนโซล
+
+      const matchedUserName = matchedUserInfo[matchedUserID].name;
       const senderName = senderInfo[senderID].name;
 
-      // ดึงรูปโปรไฟล์ของคุณและผู้ที่ถูกจับคู่
-      // สมมติว่าใช้ฟิลด์ 'profileUrl' หรือ 'photo' ในข้อมูลผู้ใช้
-      // ถ้าไม่มี, สร้าง URL รูปโปรไฟล์ด้วย Facebook Graph API
-      const getProfilePicURL = (userInfo) => {
-        // ตรวจสอบฟิลด์ที่มีอยู่
-        if (userInfo.profileUrl) {
-          return userInfo.profileUrl;
-        } else if (userInfo.photo) {
-          return userInfo.photo;
-        } else {
-          // สร้าง URL ด้วย Graph API
-          return `https://graph.facebook.com/${userInfo.id}/picture?type=large`;
-        }
+      const matchedUserPhotoURL = matchedUserInfo[matchedUserID].thumbSrc;
+      const senderPhotoURL = senderInfo[senderID].thumbSrc;
+
+      // ฟังก์ชันดาวน์โหลดรูปภาพ
+      const downloadImage = async (url, filePath) => {
+        const response = await axios({
+          url,
+          method: 'GET',
+          responseType: 'stream',
+        });
+        return new Promise((resolve, reject) => {
+          const writer = fs.createWriteStream(filePath);
+          response.data.pipe(writer);
+          writer.on('finish', resolve);
+          writer.on('error', reject);
+        });
       };
 
-      const senderPhotoURL = getProfilePicURL(senderInfo[senderID]);
-      const matchedUserPhotoURL = getProfilePicURL(matchedUserInfo[matchedUserID]);
-
-      // ตรวจสอบว่ารูปโปรไฟล์ถูกดึงมาได้หรือไม่
-      if (!senderPhotoURL || !matchedUserPhotoURL) {
-        return api.sendMessage("❗ ไม่สามารถดึงรูปโปรไฟล์ได้ กรุณาลองใหม่อีกครั้ง.", threadID);
+      // สร้างโฟลเดอร์ชั่วคราวสำหรับเก็บไฟล์
+      const tempDir = path.join(__dirname, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
       }
 
-      // สุ่มเปอร์เซ็นต์ความเข้ากันระหว่าง 50% - 100%
+      // ดาวน์โหลดรูปภาพ
+      const senderPhotoPath = path.join(tempDir, `${senderID}.jpg`);
+      const matchedUserPhotoPath = path.join(tempDir, `${matchedUserID}.jpg`);
+
+      await downloadImage(senderPhotoURL, senderPhotoPath);
+      await downloadImage(matchedUserPhotoURL, matchedUserPhotoPath);
+
+      // สุ่มเปอร์เซ็นต์ความเข้ากัน
       const compatibility = Math.floor(Math.random() * 51) + 50; // 50 - 100
-
-      // กำหนดคำอธิบายตามเปอร์เซ็นต์
-      let compatibilityDescription = "";
-      if (compatibility >= 90) {
-        compatibilityDescription = "ยอดเยี่ยม! 💖";
-      } else if (compatibility >= 75) {
-        compatibilityDescription = "ดีมาก! 😊";
-      } else if (compatibility >= 60) {
-        compatibilityDescription = "ดี! 🙂";
-      } else {
-        compatibilityDescription = "พอใช้! 😅";
-      }
-
-      // ฟังก์ชันดึงรูปโปรไฟล์เป็น Buffer
-      const getImageBuffer = async (url) => {
-        try {
-          const response = await axios.get(url, { responseType: 'arraybuffer' });
-          return Buffer.from(response.data, 'binary');
-        } catch (error) {
-          console.error(`❌ ไม่สามารถดึงรูปจาก URL: ${url}`, error);
-          return null;
-        }
-      };
-
-      const senderPhotoBuffer = await getImageBuffer(senderPhotoURL);
-      const matchedUserPhotoBuffer = await getImageBuffer(matchedUserPhotoURL);
-
-      // ตรวจสอบว่ารูปภาพถูกดึงมาได้หรือไม่
-      if (!senderPhotoBuffer || !matchedUserPhotoBuffer) {
-        return api.sendMessage("❗ ไม่สามารถดึงรูปโปรไฟล์ได้ กรุณาลองใหม่อีกครั้ง.", threadID);
-      }
+      const compatibilityDescription = compatibility >= 90 ? "ยอดเยี่ยม! 💖" :
+        compatibility >= 75 ? "ดีมาก! 😊" :
+          compatibility >= 60 ? "ดี! 🙂" : "พอใช้! 😅";
 
       // สร้างข้อความตอบกลับ
       const message = `
@@ -109,13 +87,18 @@ module.exports = {
 ❤️ **ความเข้ากัน:** ${compatibility}% ${compatibilityDescription}
       `;
 
-      // ส่งข้อความพร้อมกับรูปภาพเป็น Attachments
+      // ส่งข้อความพร้อมรูปภาพ
       const attachments = [
-        senderPhotoBuffer,
-        matchedUserPhotoBuffer
+        fs.createReadStream(senderPhotoPath),
+        fs.createReadStream(matchedUserPhotoPath),
       ];
 
-      return api.sendMessage({ body: message, attachment: attachments }, threadID);
+      await api.sendMessage({ body: message, attachment: attachments }, threadID);
+
+      // ลบไฟล์ชั่วคราว
+      fs.unlinkSync(senderPhotoPath);
+      fs.unlinkSync(matchedUserPhotoPath);
+
     } catch (error) {
       console.error(chalk.red("❌ เกิดข้อผิดพลาดในคำสั่งจับคู่:"), error);
       return api.sendMessage("❗ เกิดข้อผิดพลาดในการทำงานของคำสั่งจับคู่.", event.threadID);
