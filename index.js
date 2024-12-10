@@ -1,4 +1,3 @@
-// index.js
 const fs = require("fs");
 const login = require("ryuu-fca-api");
 const axios = require("axios");
@@ -35,30 +34,6 @@ if (fs.existsSync("./events")) {
       }
     }
   });
-}
-
-// ฟังก์ชันเรียก Simsimi API
-const simiApiKey = "moL2T0BCPc9owG4mP5wl36ZtbMXCQzwuFhgcLaji";
-const simiUrl = "https://wsapi.simsimi.com/190410/talk";
-const simiLang = "th";
-
-async function handleAutoReply(message) {
-  try {
-    const response = await axios.post(simiUrl, {
-      utext: message,
-      lang: simiLang
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": simiApiKey
-      }
-    });
-    const { atext } = response.data;
-    return atext;
-  } catch (error) {
-    console.error("❌ เกิดข้อผิดพลาดในการคุยกับ SimSimi:", error);
-    return "❗ ขอโทษครับ เกิดข้อผิดพลาดในการเชื่อมต่อ SimSimi";
-  }
 }
 
 // Set ป้องกันการตอบซ้ำ
@@ -121,7 +96,7 @@ login({ appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) }, (err, 
         const commandName = args.shift().toLowerCase();
         const command = commands[commandName];
 
-        if (command && typeof command.run === 'function') {
+        if (command && typeof command.run === "function") {
           try {
             await command.run({ api, event, args, user: null });
             console.log(chalk.green(`✅ รันคำสั่ง: ${commandName}`));
@@ -130,15 +105,8 @@ login({ appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) }, (err, 
             api.sendMessage("❗ เกิดข้อผิดพลาดในการรันคำสั่ง", event.threadID, event.messageID);
           }
         } else {
-          // ไม่เจอคำสั่ง ตอบด้วย Simsimi
-          const replyText = await handleAutoReply(message);
-          api.sendMessage(replyText, event.threadID, event.messageID);
+          api.sendMessage("❗ ไม่พบคำสั่งที่คุณต้องการ", event.threadID, event.messageID);
         }
-
-      } else {
-        // ไม่มี prefix ตอบด้วย Simsimi
-        const replyText = await handleAutoReply(message);
-        api.sendMessage(replyText, event.threadID, event.messageID);
       }
     }
 
@@ -152,7 +120,7 @@ login({ appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) }, (err, 
         if (handleReply.messageID == messageID && handleReply.author == senderID) {
           try {
             const command = commands[handleReply.name];
-            if (command && typeof command.handleReply === 'function') {
+            if (command && typeof command.handleReply === "function") {
               await command.handleReply({ api, event, handleReply });
               global.client.handleReply = global.client.handleReply.filter(item => item.messageID != messageID);
               console.log(chalk.magenta(`🔄 จัดการ handleReply ของคำสั่ง: ${handleReply.name}`));
